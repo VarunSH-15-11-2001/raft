@@ -68,6 +68,8 @@ func StartElection(n *Node) {
 					message:
 
 		if it gets majority, become leader
+
+
 	*/
 	n.State = Candidate
 	n.currentTerm++
@@ -75,6 +77,11 @@ func StartElection(n *Node) {
 	// RequestVotes()
 	// majority:=TallyVotes()
 	// if majority, MakeLeader()
+
+}
+
+func RequestVotes() {
+
 }
 
 func Run() {
