@@ -4,9 +4,9 @@ import "fmt"
 
 /*
 	[x] Append a new command to the log of a node
-	[ ] Fetch the most recent log command entry - term, index, ID
-	[ ] Remove conflicting entries ()
-	[ ] Commit the commands, mark as leader approved
+	[x] Fetch the most recent log command entry - term, index, ID
+	[x] Remove conflicting entries ()
+	[x] Commit the commands, mark as leader approved
 	[ ] Apply the commands (don't implement this yet)
 */
 
