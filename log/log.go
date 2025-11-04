@@ -20,7 +20,7 @@ type Log struct {
 	LastLogTerm int
 	CommitIndex int
 	LastApplied int
-	list        []LogEntry
+	List        []LogEntry
 }
 
 func AppendEntry(Log_Node *Log, Index int, Term int, LogCommand string) {
@@ -30,15 +30,15 @@ func AppendEntry(Log_Node *Log, Index int, Term int, LogCommand string) {
 		Command: LogCommand,
 	}
 
-	Log_Node.list = append(Log_Node.list, *NewLogEntry)
+	Log_Node.List = append(Log_Node.List, *NewLogEntry)
 }
 
 func GetRecent(Log_Node *Log) (int, int) {
 	/*
 		Given a nodes log list, return the most recent (committed/uncommitted) log entry term,index
 	*/
-	var n int = len(Log_Node.list) - 1
-	return Log_Node.list[n].Term, Log_Node.list[n].Index
+	var n int = len(Log_Node.List) - 1
+	return Log_Node.List[n].Term, Log_Node.List[n].Index
 }
 
 func TruncateConflicts(Follower_Log *Log, LeaderTerm int, LeaderIndex int) bool {
@@ -52,14 +52,14 @@ func TruncateConflicts(Follower_Log *Log, LeaderTerm int, LeaderIndex int) bool 
 		older term
 	*/
 
-	var n int = len(Follower_Log.list) - 1
+	var n int = len(Follower_Log.List) - 1
 
 	if LeaderIndex > n {
 		return false
 	}
 
-	if Follower_Log.list[LeaderIndex].Term != LeaderTerm {
-		Follower_Log.list = Follower_Log.list[:LeaderIndex]
+	if Follower_Log.List[LeaderIndex].Term != LeaderTerm {
+		Follower_Log.List = Follower_Log.List[:LeaderIndex]
 	}
 
 	return true
