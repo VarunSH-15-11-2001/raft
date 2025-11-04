@@ -1,7 +1,9 @@
 package node
 
 import (
+	"consensus-kvstore/communication_iface"
 	"consensus-kvstore/log"
+	"consensus-kvstore/message"
 	"fmt"
 	"time"
 )
@@ -35,6 +37,12 @@ type Node struct {
 
 func NewNode(id int, currentTerm int, state NodeState, electionTimeout time.Duration, electionTimer *time.Timer,
 	heartbeatTimeout time.Duration, heartbeatTimer *time.Timer) *Node {
+	Log_Object := &log.Log{
+		LastLogTerm: 0,
+		CommitIndex: 0,
+		LastApplied: 0,
+		List:        []log.LogEntry{},
+	}
 	return &Node{
 		ID:               id,
 		currentTerm:      currentTerm,
@@ -43,10 +51,11 @@ func NewNode(id int, currentTerm int, state NodeState, electionTimeout time.Dura
 		electionTimer:    electionTimer,
 		heartbeatTimeout: heartbeatTimeout,
 		heartbeatTimer:   heartbeatTimer,
+		Log_Node:         Log_Object,
 	}
 }
 
-func StartElectionTimeout(n *Node, done chan<- bool) {
+func StartElectionTimeout(n *Node, done chan<- bool, net communication_iface.Network) {
 	if n.electionTimer != nil {
 		n.electionTimer.Stop()
 	}
@@ -54,12 +63,12 @@ func StartElectionTimeout(n *Node, done chan<- bool) {
 	go func() {
 		<-n.electionTimer.C
 		done <- true
-		StartElection(n)
-		fmt.Printf("election timeout for node %d, starting leader election", n.ID)
+		StartElection(n, net)
+		fmt.Printf("\nelection timeout for node %d, starting leader election", n.ID)
 	}()
 }
 
-func StartElection(n *Node) {
+func StartElection(n *Node, net communication_iface.Network) {
 	/*
 		Become candidate
 		request votes, nodes will reply
@@ -68,20 +77,25 @@ func StartElection(n *Node) {
 					message:
 
 		if it gets majority, become leader
-
-
 	*/
+
 	n.State = Candidate
 	n.currentTerm++
-	fmt.Printf("Node %d became candidate for term %d", n.ID, n.currentTerm)
-	// RequestVotes()
+	fmt.Printf("\nNode %d became candidate for term %d", n.ID, n.currentTerm)
+	RequestVotes(n, net)
+
 	// majority:=TallyVotes()
 	// if majority, MakeLeader()
 
 }
 
-func RequestVotes() {
-
+func RequestVotes(candidate *Node, net communication_iface.Network) {
+	VoteRequest := &message.VoteRequest{
+		CandidateTerm: candidate.currentTerm,
+		CandidateID:   candidate.ID,
+		LastLogIndex:  len(candidate.Log_Node.List),
+	}
+	net.SendVoteRequest(candidate.ID, 1, *VoteRequest)
 }
 
 func Run() {
