@@ -33,6 +33,8 @@ type Node struct {
 	electionTimer    *time.Timer
 	heartbeatTimer   *time.Timer
 	Log_Node         *log.Log
+	Inbox            chan *message.Envelope
+	Voted            bool
 }
 
 func NewNode(id int, currentTerm int, state NodeState, electionTimeout time.Duration, electionTimer *time.Timer,
@@ -52,6 +54,8 @@ func NewNode(id int, currentTerm int, state NodeState, electionTimeout time.Dura
 		heartbeatTimeout: heartbeatTimeout,
 		heartbeatTimer:   heartbeatTimer,
 		Log_Node:         Log_Object,
+		Inbox:            make(chan *message.Envelope, 100),
+		Voted:            false,
 	}
 }
 
@@ -95,7 +99,42 @@ func RequestVotes(candidate *Node, net communication_iface.Network) {
 		CandidateID:   candidate.ID,
 		LastLogIndex:  len(candidate.Log_Node.List),
 	}
+	// send vote requests to ALL nodes in netmap
 	net.SendVoteRequest(candidate.ID, 1, *VoteRequest)
+}
+
+func (n *Node) Listener(net communication_iface.Network) {
+	go func() {
+		for {
+			msg, ok := <-n.Inbox
+			if ok {
+				n.HandleMessage(msg, net)
+				fmt.Printf("\nnode %d received a message!\n", n.ID)
+			}
+		}
+
+	}()
+
+}
+
+func (n *Node) HandleMessage(msg *message.Envelope, net communication_iface.Network) {
+	if msg.Type == "VoteRequest" {
+		VoteResponse := message.VoteResponse{
+			Term:        n.currentTerm,
+			VoteGranted: true,
+		}
+
+		if n.Voted {
+			VoteResponse.VoteGranted = false
+		}
+
+		// fromNode := net.Nodes[msg.FromID]
+		// if fromNode.Log_Node.LastLogTerm < n.Log_Node.LastLogTerm {
+		// 	VoteResponse.VoteGranted = false
+		// }
+
+		net.SendVoteResponse(n.ID, msg.FromID, VoteResponse)
+	}
 }
 
 func Run() {
