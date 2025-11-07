@@ -4,12 +4,12 @@ import (
 	"consensus-kvstore/communication_impl"
 	"consensus-kvstore/node"
 	"fmt"
+	"sync"
 	"time"
 )
 
 func main() {
 	fmt.Println("main")
-	// main_done := make(chan bool)
 	electionTimeout := 6 * time.Second
 	heartbeatTimeout := 5 * time.Second
 	electionTimer := time.NewTimer(electionTimeout)
@@ -31,22 +31,57 @@ func main() {
 	nodeMap[follower2.ID] = follower2
 	nodeMap[follower3.ID] = follower3
 
-	network := communication_impl.RealNetwork{}
+	network := communication_impl.InMemoryNetwork{}
 	network.Init(nodeMap)
 	leader_done := make(chan bool)
-	node.StartElectionTimeout(leader, leader_done, &network)
 	follower1_done := make(chan bool)
 	follower2_done := make(chan bool)
 	follower3_done := make(chan bool)
+	follower1.Listener(&network)
 
-	node.StartElectionTimeout(follower1, follower1_done, &network)
-	node.StartElectionTimeout(follower2, follower2_done, &network)
-	node.StartElectionTimeout(follower3, follower3_done, &network)
-	<-follower1_done
-	<-follower2_done
-	<-follower3_done
-	// <-main_done
-	fmt.Print("Main completed")
+	var wg sync.WaitGroup
+
+	start := make(chan struct{})
+
+	wg.Add(4)
+
+	go func() {
+		<-start
+		node.StartElectionTimeout(leader, leader_done, &network)
+		<-leader_done
+		wg.Done()
+	}()
+
+	go func() {
+		<-start
+		node.StartElectionTimeout(follower1, follower1_done, &network)
+		<-follower1_done
+		wg.Done()
+	}()
+
+	go func() {
+		<-start
+		node.StartElectionTimeout(follower2, follower2_done, &network)
+		<-follower2_done
+		wg.Done()
+	}()
+
+	go func() {
+		<-start
+		node.StartElectionTimeout(follower3, follower3_done, &network)
+		<-follower3_done
+		wg.Done()
+	}()
+
+	close(start)
+	wg.Wait()
+
+	if len(network.History) >= 2 {
+		fmt.Printf("\nMessage added from nodeID:%d to nodeID:%d\n", network.History[1].FromID, network.History[1].ToID)
+	}
+
+	time.Sleep(8 * time.Second)
+	fmt.Print("\nMain completed\n")
 }
 
 func GetNewNode(i int) *node.Node {
