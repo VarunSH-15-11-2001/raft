@@ -30,3 +30,10 @@ type AppenEntriesResponse struct {
 	Success      bool
 	Index        int
 }
+
+type Envelope struct {
+	FromID  int
+	ToID    int
+	Type    string
+	Payload interface{}
+}
