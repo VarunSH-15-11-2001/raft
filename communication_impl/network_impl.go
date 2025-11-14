@@ -29,6 +29,19 @@ func (r *InMemoryNetwork) Init(nodeMap map[int]*node.Node) {
 	}
 }
 
+func (r *InMemoryNetwork) RequestVotes(candidateID int) {
+	VoteRequest := message.VoteRequest{
+		CandidateTerm: r.Nodes[candidateID].CurrentTerm,
+		CandidateID:   candidateID,
+		LastLogIndex:  len(r.Nodes[candidateID].Log_Node.List),
+	}
+	for to_id := range r.Nodes {
+		if to_id != candidateID {
+			r.SendVoteRequest(candidateID, to_id, VoteRequest)
+		}
+	}
+}
+
 func (r *InMemoryNetwork) SendVoteRequest(fromID int, toID int, request message.VoteRequest) {
 	VoteRequest := message.Envelope{
 		FromID:  fromID,
@@ -38,21 +51,29 @@ func (r *InMemoryNetwork) SendVoteRequest(fromID int, toID int, request message.
 	}
 	r.MessageMap[toID] <- VoteRequest
 	r.History = append(r.History, VoteRequest)
-	fmt.Printf("\nSendVoteRequest - FromID: %d, toID: %d", request.CandidateID, toID)
+	r.Nodes[fromID].SystemLog.Info(fmt.Sprintf("SendVoteRequest - FromID: %d, toID: %d", request.CandidateID, toID))
 }
 
 func (r *InMemoryNetwork) SendVoteResponse(fromID, toID int, response message.VoteResponse) {
-	fmt.Printf("\nSendVoteResponse - FromID: %d, toID: %d, voteGranted: %t", fromID, toID, response.VoteGranted)
+	r.Nodes[fromID].SystemLog.Info(fmt.Sprintf("SendVoteResponse - FromID: %d, toID: %d, voteGranted: %t", fromID, toID, response.VoteGranted))
 }
 
 func (r *InMemoryNetwork) SendAppendEntries(fromID int, toID int) {
-	fmt.Printf("\nSendVoteResponse - FromID: %d, toID: %d,", fromID, toID)
+	r.Nodes[fromID].SystemLog.Info(fmt.Sprintf("SendVoteResponse - FromID: %d, toID: %d,", fromID, toID))
 }
 
 func (r *InMemoryNetwork) Heartbeat(LeaderID int) {
 	for nodeID := range r.Nodes {
 		r.SendAppendEntries(LeaderID, nodeID)
 	}
+}
+
+func (r *InMemoryNetwork) GetLastLogTerm(id int) int {
+	return r.Nodes[id].Log_Node.LastLogTerm
+}
+
+func (r *InMemoryNetwork) GetTerm(id int) int {
+	return r.Nodes[id].CurrentTerm
 }
 
 var _ communication_iface.Network = (*InMemoryNetwork)(nil)
