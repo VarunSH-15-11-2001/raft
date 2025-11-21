@@ -2,6 +2,7 @@ package communication_impl
 
 import (
 	"consensus-kvstore/communication_iface"
+	"consensus-kvstore/log"
 	"consensus-kvstore/message"
 	"consensus-kvstore/node"
 	"fmt"
@@ -54,17 +55,83 @@ func (r *InMemoryNetwork) SendVoteRequest(fromID int, toID int, request message.
 	r.Nodes[fromID].SystemLog.Info(fmt.Sprintf("SendVoteRequest - FromID: %d, toID: %d", request.CandidateID, toID))
 }
 
-func (r *InMemoryNetwork) SendVoteResponse(fromID, toID int, response message.VoteResponse) {
-	r.Nodes[fromID].SystemLog.Info(fmt.Sprintf("SendVoteResponse - FromID: %d, toID: %d, voteGranted: %t", fromID, toID, response.VoteGranted))
+func (r *InMemoryNetwork) SendVoteResponse(fromID, toID int, tipe int, response message.VoteResponse) {
+	var tipeString string
+	switch tipe {
+	case 1:
+		tipeString = "VoteResponse"
+	case 2:
+		tipeString = "AppendResponse"
+	}
+	Response := message.Envelope{
+		FromID:  fromID,
+		ToID:    toID,
+		Type:    tipeString,
+		Payload: response,
+	}
+	select {
+	case r.MessageMap[toID] <- Response:
+		r.History = append(r.History, Response)
+	default:
+		r.Nodes[fromID].SystemLog.Warn(fmt.Sprintf("Dropped %s to %d: inbox full", tipeString, toID))
+	}
 }
 
-func (r *InMemoryNetwork) SendAppendEntries(fromID int, toID int) {
-	r.Nodes[fromID].SystemLog.Info(fmt.Sprintf("SendVoteResponse - FromID: %d, toID: %d,", fromID, toID))
+func (r *InMemoryNetwork) SendAppendEntries(LeaderID int, nodeID int, Command string) {
+	leaderNode := r.Nodes[LeaderID]
+
+	Entries := []log.LogEntry{{
+		Index:   len(leaderNode.Log_Node.List) + 1,
+		Term:    leaderNode.CurrentTerm,
+		Command: Command,
+	},
+	}
+	n := len(leaderNode.Log_Node.List)
+	PrevLogEntry := leaderNode.Log_Node.List[n-1]
+
+	AppendEntryCommand := message.AppendEntriesRequest{
+		LeaderID:     LeaderID,
+		LeaderTerm:   leaderNode.CurrentTerm,
+		Entries:      Entries,
+		PrevLogIndex: PrevLogEntry.Index,
+		PrevLogTerm:  PrevLogEntry.Term,
+		LeaderCommit: leaderNode.Log_Node.CommitIndex,
+	}
+
+	AppendEntryMessage := message.Envelope{
+		FromID:  LeaderID,
+		ToID:    nodeID,
+		Type:    "AppendEntry",
+		Payload: AppendEntryCommand,
+	}
+
+	r.MessageMap[nodeID] <- AppendEntryMessage
+	select {
+	case r.MessageMap[nodeID] <- AppendEntryMessage:
+		r.History = append(r.History, AppendEntryMessage)
+	default:
+		r.Nodes[nodeID].SystemLog.Warn(fmt.Sprintf("Dropped AppendEntry to %d: inbox full", nodeID))
+	}
+}
+
+func (r *InMemoryNetwork) SendAppendEntriesResponse(fromID int, toID int, response message.AppendEntriesResponse) {
+	Response := message.Envelope{
+		FromID:  fromID,
+		ToID:    toID,
+		Type:    "AppendEntryResponse",
+		Payload: response,
+	}
+	select {
+	case r.MessageMap[toID] <- Response:
+		r.History = append(r.History, Response)
+	default:
+		r.Nodes[fromID].SystemLog.Warn(fmt.Sprintf("Dropped AppendEntryResponse to %d: inbox full", toID))
+	}
 }
 
 func (r *InMemoryNetwork) Heartbeat(LeaderID int) {
 	for nodeID := range r.Nodes {
-		r.SendAppendEntries(LeaderID, nodeID)
+		r.SendAppendEntries(LeaderID, nodeID, "")
 	}
 }
 
@@ -74,6 +141,10 @@ func (r *InMemoryNetwork) GetLastLogTerm(id int) int {
 
 func (r *InMemoryNetwork) GetTerm(id int) int {
 	return r.Nodes[id].CurrentTerm
+}
+
+func (r *InMemoryNetwork) GetNumberOfNodes() int {
+	return len(r.Nodes)
 }
 
 var _ communication_iface.Network = (*InMemoryNetwork)(nil)
