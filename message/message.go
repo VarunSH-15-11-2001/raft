@@ -25,7 +25,7 @@ type AppendEntriesRequest struct {
 	LeaderCommit int
 }
 
-type AppenEntriesResponse struct {
+type AppendEntriesResponse struct {
 	FollowerTerm int
 	Success      bool
 	Index        int
